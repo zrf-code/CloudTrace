@@ -64,14 +64,14 @@ FONT_TITLE.setBold(True)
 FONT_BTN = QFont(SYSTEM_FONT.split(',')[0].strip(), 11)
 FONT_STATUS = QFont(SYSTEM_FONT.split(',')[0].strip(), 10)
 FONT_LABEL = QFont(SYSTEM_FONT.split(',')[0].strip(), 10)
-FONT_SMALL = QFont(SYSTEM_FONT.split(',')[0].strip(), 9)
+FONT_SMALL = QFont(SYSTEM_FONT.split(',')[0].strip(), 11)
 
 BTN_W = 120
 BTN_H = 32
 SPACING = 8
 
 # 保存路径
-SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cf_scan_history")
+SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CloudTrace_history")
 IPV4_SCAN_FILE = os.path.join(SAVE_DIR, "ipv4_scan_latest.json")
 IPV6_SCAN_FILE = os.path.join(SAVE_DIR, "ipv6_scan_latest.json")
 IPV4_SPEED_FILE = os.path.join(SAVE_DIR, "ipv4_speed_latest.json")
@@ -1347,7 +1347,7 @@ class CloudflareScanUI(QWidget):
     def _make_label(self, text):
         label = QLabel(text)
         label.setFont(FONT_SMALL)
-        label.setStyleSheet(f'color: #6B7280; font-family: "{SYSTEM_FONT}";')
+        label.setStyleSheet(f'color: #E2E8F0; font-family: "{SYSTEM_FONT}";')
         return label
 
     def init_ui(self):
@@ -1355,7 +1355,7 @@ class CloudflareScanUI(QWidget):
         main.setContentsMargins(14, 14, 14, 14)
         main.setSpacing(10)
         
-        # ★ 新增：顶部标题卡片区域 (整合自33.py)
+        # ★ 新增：顶部标题卡片区域
         title_frame = QFrame()
         title_frame.setObjectName("titleFrame")
         title_frame.setStyleSheet("""
@@ -1423,13 +1423,13 @@ class CloudflareScanUI(QWidget):
         row2.setSpacing(SPACING)
         row2.addStretch()
         
-        self.btn_load_ipv4_scan = self.make_btn("加载IPv4扫描", "#0EA5E9")
+        self.btn_load_ipv4_scan = self.make_btn("加载IPv4扫描结果", "#0EA5E9", width=160)
         self.btn_load_ipv4_scan.clicked.connect(self.load_ipv4_scan_results)
         row2.addWidget(self.btn_load_ipv4_scan)
         
         row2.addSpacing(SPACING)
         
-        self.btn_load_ipv6_scan = self.make_btn("加载IPv6扫描", "#10B981")
+        self.btn_load_ipv6_scan = self.make_btn("加载IPv6扫描结果", "#10B981", width=160)
         self.btn_load_ipv6_scan.clicked.connect(self.load_ipv6_scan_results)
         row2.addWidget(self.btn_load_ipv6_scan)
         row2.addStretch()
@@ -1460,17 +1460,17 @@ class CloudflareScanUI(QWidget):
         
         control.addLayout(row3)
 
-        # ===================== ★ 第四行：参数设置（深色卡片） =====================
-        
+        # ===================== ★ 第四行：参数设置（修复重叠与可读性） =====================
+
         # 定义参数面板样式
-        PARAM_BG = "#0B3C5D"        # 面板背景色（与日志一致）
+        PARAM_BG = "#2153a5"        # 面板背景色
         PARAM_BORDER = "#1E4D6B"    # 面板边框色
         INPUT_BG = "#0F2B44"        # 输入框背景
         INPUT_BORDER = "#1A3D5C"    # 输入框边框
-        TEXT_COLOR = "#E2E8F0"      # 输入框文字颜色
-        LABEL_COLOR = "#94A3B8"     # 标签颜色
+        TEXT_COLOR = "#F1F5F9"      # 输入框文字颜色
+        LABEL_COLOR = "#FFFFFF"     # 标签颜色（亮白，确保清晰可见）
         FOCUS_COLOR = "#3B82F6"     # 聚焦高亮
-        
+
         param_style = f"""
             QFrame#paramRow {{
                 background: {PARAM_BG};
@@ -1478,12 +1478,14 @@ class CloudflareScanUI(QWidget):
                 border-radius: 8px;
                 padding: 8px 14px;
             }}
-            QLabel {{ 
-                color: {LABEL_COLOR}; 
-                font-size: 10px; 
-                font-family: "{SYSTEM_FONT}"; 
-                background: transparent; 
-                border: none; 
+            QLabel {{
+                color: {LABEL_COLOR};
+                font-size: 11px;
+
+                font-family: "{SYSTEM_FONT}";
+                background: transparent;
+                border: none;
+                font-weight: 500;
             }}
             QLineEdit, QSpinBox, QComboBox {{
                 background: {INPUT_BG};
@@ -1496,93 +1498,119 @@ class CloudflareScanUI(QWidget):
             QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
                 border: 1px solid {FOCUS_COLOR};
             }}
-            /* 美化 ComboBox 下拉箭头 */
-            QComboBox::drop-down {{
-                subcontrol-origin: padding; subcontrol-position: top right;
-                width: 15px; border-left: 1px solid {INPUT_BORDER};
-                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
-                background: transparent;
-            }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         """
 
         # 创建参数容器
         param_frame = QFrame()
         param_frame.setObjectName("paramRow")
         param_frame.setStyleSheet(param_style)
-        
-        # 内部布局
-        param_layout = QVBoxLayout(param_frame)
-        param_layout.setContentsMargins(0, 0, 0, 0)
-        param_layout.setSpacing(6)
-        
-        # 控件行
+
+        row4_layout = QVBoxLayout(param_frame)
+        row4_layout.setContentsMargins(0, 4, 0, 4)
+        row4_layout.setSpacing(6)
+
+        # --- 控件行 ---
         row4 = QHBoxLayout()
-        row4.setSpacing(10)
+        row4.setSpacing(20) # 增加组之间的间距
         row4.addStretch() # 居中对齐
-        
+
+        # 辅助函数：创建一个垂直分组（标签在上，输入框在下）
+        def _make_group(label_text, widget):
+            group_layout = QVBoxLayout()
+            group_layout.setSpacing(2)
+            group_layout.setContentsMargins(0, 0, 0, 0)
+            lbl = QLabel(label_text)
+            lbl.setObjectName("paramLabel")
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setFont(FONT_SMALL)
+            group_layout.addWidget(lbl)
+            group_layout.addWidget(widget)
+            return group_layout
+
         # 1. 地区码
         self.input_region = QLineEdit()
-        self.input_region.setFixedSize(70, 28)
+        self.input_region.setFixedSize(75, 28)
         self.input_region.setFont(FONT_BTN)
         self.input_region.setPlaceholderText("HKG")
         self.input_region.setAlignment(Qt.AlignCenter)
         self.input_region.textChanged.connect(self.auto_uppercase)
-        row4.addWidget(self._make_label("地区码"))
-        row4.addWidget(self.input_region)
-        
-        row4.addSpacing(16)
-        
+        row4.addLayout(_make_group("地区码", self.input_region))
+
+
         # 2. 数量
+
+
+
         self.input_speed_count = QSpinBox()
-        self.input_speed_count.setFixedSize(45, 28)
+        self.input_speed_count.setFixedSize(60, 28)
         self.input_speed_count.setFont(FONT_SMALL)
         self.input_speed_count.setRange(1, 50)
         self.input_speed_count.setValue(10)
         self.input_speed_count.setAlignment(Qt.AlignCenter)
-        row4.addWidget(self._make_label("数量:"))
-        row4.addWidget(self.input_speed_count)
-        
-        row4.addSpacing(8)
-        
+
+        row4.addLayout(_make_group("数量", self.input_speed_count))
+
         # 3. 端口
+
+
+
         self.combo_port = QComboBox()
-        self.combo_port.setFixedSize(55, 28)
+        self.combo_port.setFixedSize(75, 28)
         self.combo_port.setFont(FONT_SMALL)
         for port in PORT_OPTIONS:
             self.combo_port.addItem(port)
         self.combo_port.setCurrentText("443")
-        row4.addWidget(self._make_label("端口:"))
-        row4.addWidget(self.combo_port)
-        
-        row4.addSpacing(8)
-        
+        row4.addLayout(_make_group("端口", self.combo_port))
+
+
+
+
         # 4. 并发
         self.input_workers = QSpinBox()
-        self.input_workers.setFixedSize(55, 28)
+        self.input_workers.setFixedSize(65, 28)
         self.input_workers.setFont(FONT_SMALL)
         self.input_workers.setRange(10, 500)
         self.input_workers.setValue(200)
         self.input_workers.setSingleStep(50)
         self.input_workers.setAlignment(Qt.AlignCenter)
-        row4.addWidget(self._make_label("并发:"))
-        row4.addWidget(self.input_workers)
-        
-        row4.addSpacing(8)
-        
+        row4.addLayout(_make_group("并发", self.input_workers))
+
+
+
+
         # 5. 阈值
         self.input_threshold = QSpinBox()
-        self.input_threshold.setFixedSize(55, 28)
+        self.input_threshold.setFixedSize(65, 28)
         self.input_threshold.setFont(FONT_SMALL)
         self.input_threshold.setRange(50, 999)
         self.input_threshold.setValue(230)
         self.input_threshold.setSingleStep(10)
         self.input_threshold.setAlignment(Qt.AlignCenter)
-        row4.addWidget(self._make_label("阈值ms:"))
-        row4.addWidget(self.input_threshold)
-        
+        row4.addLayout(_make_group("阈值ms", self.input_threshold))
+
+
         row4.addStretch() # 右侧留白
-        param_layout.addLayout(row4)
-        
+        row4_layout.addLayout(row4)
+
         # 将参数容器添加到总布局
         control.addWidget(param_frame)
         
