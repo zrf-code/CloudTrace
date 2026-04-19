@@ -1394,145 +1394,198 @@ class CloudflareScanUI(QWidget):
         control.setSpacing(SPACING)
         control.setAlignment(Qt.AlignCenter)
 
-        # 第一行：扫描按钮
+        # ===================== 第一行：扫描按钮 =====================
         row1 = QHBoxLayout()
         row1.setSpacing(SPACING)
         row1.addStretch()
+        
         self.btn_ipv4 = self.make_btn("IPv4 扫描", "#3B82F6")
         self.btn_ipv4.clicked.connect(self.start_ipv4_scan)
         row1.addWidget(self.btn_ipv4)
+        
         row1.addSpacing(SPACING)
+        
         self.btn_ipv6 = self.make_btn("IPv6 扫描", "#22C55E")
         self.btn_ipv6.clicked.connect(self.start_ipv6_scan)
         row1.addWidget(self.btn_ipv6)
+        
         row1.addSpacing(SPACING)
+        
         self.btn_stop = self.make_stop_btn("停止任务", enabled=False)
         self.btn_stop.clicked.connect(self.confirm_stop_all_tasks)
         row1.addWidget(self.btn_stop)
         row1.addStretch()
+        
+        control.addLayout(row1)
 
-        # 第二行：加载历史
+        # ===================== 第二行：加载历史 =====================
         row2 = QHBoxLayout()
         row2.setSpacing(SPACING)
         row2.addStretch()
+        
         self.btn_load_ipv4_scan = self.make_btn("加载IPv4扫描", "#0EA5E9")
         self.btn_load_ipv4_scan.clicked.connect(self.load_ipv4_scan_results)
         row2.addWidget(self.btn_load_ipv4_scan)
+        
         row2.addSpacing(SPACING)
+        
         self.btn_load_ipv6_scan = self.make_btn("加载IPv6扫描", "#10B981")
         self.btn_load_ipv6_scan.clicked.connect(self.load_ipv6_scan_results)
         row2.addWidget(self.btn_load_ipv6_scan)
         row2.addStretch()
+        
+        control.addLayout(row2)
 
-        # 第三行：测速 + 导出
+        # ===================== 第三行：测速 + 导出 =====================
         row3 = QHBoxLayout()
         row3.setSpacing(SPACING)
         row3.addStretch()
+        
         self.btn_area = self.make_btn("地区测速", "#EC4899", enabled=False)
         self.btn_area.clicked.connect(self.start_region_speed_test)
         row3.addWidget(self.btn_area)
+        
         row3.addSpacing(SPACING)
+        
         self.btn_full = self.make_btn("完全测速", "#F97316", enabled=False)
         self.btn_full.clicked.connect(self.start_full_speed_test)
         row3.addWidget(self.btn_full)
+        
         row3.addSpacing(SPACING)
+        
         self.btn_export = self.make_btn("导出结果", "#8B5CF6", enabled=False)
         self.btn_export.clicked.connect(self.export_results)
         row3.addWidget(self.btn_export)
         row3.addStretch()
+        
+        control.addLayout(row3)
 
-        # 第四行：输入框 + 参数
+        # ===================== ★ 第四行：参数设置（深色卡片） =====================
+        
+        # 定义参数面板样式
+        PARAM_BG = "#0B3C5D"        # 面板背景色（与日志一致）
+        PARAM_BORDER = "#1E4D6B"    # 面板边框色
+        INPUT_BG = "#0F2B44"        # 输入框背景
+        INPUT_BORDER = "#1A3D5C"    # 输入框边框
+        TEXT_COLOR = "#E2E8F0"      # 输入框文字颜色
+        LABEL_COLOR = "#94A3B8"     # 标签颜色
+        FOCUS_COLOR = "#3B82F6"     # 聚焦高亮
+        
+        param_style = f"""
+            QFrame#paramRow {{
+                background: {PARAM_BG};
+                border: 1px solid {PARAM_BORDER};
+                border-radius: 8px;
+                padding: 8px 14px;
+            }}
+            QLabel {{ 
+                color: {LABEL_COLOR}; 
+                font-size: 10px; 
+                font-family: "{SYSTEM_FONT}"; 
+                background: transparent; 
+                border: none; 
+            }}
+            QLineEdit, QSpinBox, QComboBox {{
+                background: {INPUT_BG};
+                color: {TEXT_COLOR};
+                border: 1px solid {INPUT_BORDER};
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-family: "{SYSTEM_FONT}";
+            }}
+            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
+                border: 1px solid {FOCUS_COLOR};
+            }}
+            /* 美化 ComboBox 下拉箭头 */
+            QComboBox::drop-down {{
+                subcontrol-origin: padding; subcontrol-position: top right;
+                width: 15px; border-left: 1px solid {INPUT_BORDER};
+                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+                background: transparent;
+            }}
+        """
+
+        # 创建参数容器
+        param_frame = QFrame()
+        param_frame.setObjectName("paramRow")
+        param_frame.setStyleSheet(param_style)
+        
+        # 内部布局
+        param_layout = QVBoxLayout(param_frame)
+        param_layout.setContentsMargins(0, 0, 0, 0)
+        param_layout.setSpacing(6)
+        
+        # 控件行
         row4 = QHBoxLayout()
-        row4.setSpacing(6)
-        row4.addStretch()
-
+        row4.setSpacing(10)
+        row4.addStretch() # 居中对齐
+        
+        # 1. 地区码
         self.input_region = QLineEdit()
-        self.input_region.setFixedSize(80, BTN_H)
+        self.input_region.setFixedSize(70, 28)
         self.input_region.setFont(FONT_BTN)
-        self.input_region.setPlaceholderText("地区码")
-        self.input_region.setStyleSheet(f"""
-        QLineEdit {{
-            background: white; border: 1px solid #D1D5DB; border-radius: 6px;
-            padding-left: 8px; font-family: "{SYSTEM_FONT}"; color: #111827;
-        }}
-        QLineEdit:focus {{ border-color: #F97316; }}
-        """)
+        self.input_region.setPlaceholderText("HKG")
+        self.input_region.setAlignment(Qt.AlignCenter)
         self.input_region.textChanged.connect(self.auto_uppercase)
+        row4.addWidget(self._make_label("地区码"))
         row4.addWidget(self.input_region)
-
-        row4.addWidget(self._make_label("数量:"))
+        
+        row4.addSpacing(16)
+        
+        # 2. 数量
         self.input_speed_count = QSpinBox()
-        self.input_speed_count.setFixedSize(55, BTN_H)
+        self.input_speed_count.setFixedSize(45, 28)
         self.input_speed_count.setFont(FONT_SMALL)
         self.input_speed_count.setRange(1, 50)
         self.input_speed_count.setValue(10)
-        self.input_speed_count.setStyleSheet(f"""
-        QSpinBox {{
-            background: white; border: 1px solid #D1D5DB; border-radius: 6px;
-            padding: 0px 3px; font-family: "{SYSTEM_FONT}"; color: #111827;
-        }}
-        QSpinBox:focus {{ border-color: #F97316; }}
-        """)
+        self.input_speed_count.setAlignment(Qt.AlignCenter)
+        row4.addWidget(self._make_label("数量:"))
         row4.addWidget(self.input_speed_count)
-
-        row4.addWidget(self._make_label("端口:"))
+        
+        row4.addSpacing(8)
+        
+        # 3. 端口
         self.combo_port = QComboBox()
-        self.combo_port.setFixedSize(65, BTN_H)
+        self.combo_port.setFixedSize(55, 28)
         self.combo_port.setFont(FONT_SMALL)
         for port in PORT_OPTIONS:
             self.combo_port.addItem(port)
         self.combo_port.setCurrentText("443")
-        self.combo_port.setStyleSheet(f"""
-        QComboBox {{
-            background: white; border: 1px solid #D1D5DB; border-radius: 6px;
-            padding: 0px 3px; font-family: "{SYSTEM_FONT}"; color: #111827;
-        }}
-        QComboBox::drop-down {{
-            subcontrol-origin: padding; subcontrol-position: top right;
-            width: 18px; border: none;
-            border-top-right-radius: 5px; border-bottom-right-radius: 5px;
-        }}
-        """)
+        row4.addWidget(self._make_label("端口:"))
         row4.addWidget(self.combo_port)
-
-        row4.addWidget(self._make_label("并发:"))
+        
+        row4.addSpacing(8)
+        
+        # 4. 并发
         self.input_workers = QSpinBox()
-        self.input_workers.setFixedSize(55, BTN_H)
+        self.input_workers.setFixedSize(55, 28)
         self.input_workers.setFont(FONT_SMALL)
         self.input_workers.setRange(10, 500)
         self.input_workers.setValue(200)
         self.input_workers.setSingleStep(50)
-        self.input_workers.setStyleSheet(f"""
-        QSpinBox {{
-            background: white; border: 1px solid #D1D5DB; border-radius: 6px;
-            padding: 0px 3px; font-family: "{SYSTEM_FONT}"; color: #111827;
-        }}
-        QSpinBox:focus {{ border-color: #F97316; }}
-        """)
+        self.input_workers.setAlignment(Qt.AlignCenter)
+        row4.addWidget(self._make_label("并发:"))
         row4.addWidget(self.input_workers)
-
-        row4.addWidget(self._make_label("阈值ms:"))
+        
+        row4.addSpacing(8)
+        
+        # 5. 阈值
         self.input_threshold = QSpinBox()
-        self.input_threshold.setFixedSize(58, BTN_H)
+        self.input_threshold.setFixedSize(55, 28)
         self.input_threshold.setFont(FONT_SMALL)
         self.input_threshold.setRange(50, 999)
         self.input_threshold.setValue(230)
         self.input_threshold.setSingleStep(10)
-        self.input_threshold.setStyleSheet(f"""
-        QSpinBox {{
-            background: white; border: 1px solid #D1D5DB; border-radius: 6px;
-            padding: 0px 3px; font-family: "{SYSTEM_FONT}"; color: #111827;
-        }}
-        QSpinBox:focus {{ border-color: #F97316; }}
-        """)
+        self.input_threshold.setAlignment(Qt.AlignCenter)
+        row4.addWidget(self._make_label("阈值ms:"))
         row4.addWidget(self.input_threshold)
-
-        row4.addStretch()
-
-        control.addLayout(row1)
-        control.addLayout(row2)
-        control.addLayout(row3)
-        control.addLayout(row4)
+        
+        row4.addStretch() # 右侧留白
+        param_layout.addLayout(row4)
+        
+        # 将参数容器添加到总布局
+        control.addWidget(param_frame)
+        
         main.addLayout(control)
 
         # 进度条
@@ -1561,7 +1614,6 @@ class CloudflareScanUI(QWidget):
         log_label.setFont(FONT_LABEL)
         log_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{SYSTEM_FONT}";')
         main.addWidget(log_label)
-
         self.status_display = QTextEdit()
         self.status_display.setFont(FONT_STATUS)
         self.status_display.setMaximumHeight(180)
@@ -1574,7 +1626,6 @@ class CloudflareScanUI(QWidget):
         speed_label.setFont(FONT_LABEL)
         speed_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{SYSTEM_FONT}";')
         main.addWidget(speed_label)
-
         self.speed_table = QTableWidget()
         self.speed_table.setColumnCount(7)
         self.speed_table.setHorizontalHeaderLabels(["排名", "IP地址", "地区", "延迟", "下载速度", "端口", "测速类型"])
