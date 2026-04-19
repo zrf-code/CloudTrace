@@ -342,6 +342,189 @@ def get_history_list(ip_version: int, result_type: str) -> List[Dict]:
     return history
 
 
+# ===================== ★ 通用美化消息框 =====================
+class CustomMessageBox(QDialog):
+    """通用美化消息对话框，替代 QMessageBox"""
+    
+    TYPE_INFO = "info"
+    TYPE_WARNING = "warning"
+    TYPE_ERROR = "error"
+    TYPE_QUESTION = "question"
+    
+    ICONS = {
+        TYPE_INFO: "ℹ️",
+        TYPE_WARNING: "⚠️",
+        TYPE_ERROR: "❌",
+        TYPE_QUESTION: "❓",
+    }
+    
+    @classmethod
+    def show(cls, parent, title: str, text: str, msg_type: str = TYPE_INFO, 
+             buttons: List[str] = None, default_button: str = None) -> Optional[str]:
+        """
+        显示美化对话框
+        :param parent: 父窗口
+        :param title: 窗口标题
+        :param text: 消息内容
+        :param msg_type: 类型 (info/warning/error/question)
+        :param buttons: 按钮列表，如 ["确定", "取消"]
+        :param default_button: 默认按钮（回车触发）
+        :return: 点击的按钮文本，或 None
+        """
+        dlg = cls(parent, title, text, msg_type, buttons, default_button)
+        if dlg.exec() == QDialog.Accepted:
+            return dlg.clicked_button
+        return None
+    
+    @classmethod
+    def information(cls, parent, title: str, text: str):
+        dlg = cls(parent, title, text, cls.TYPE_INFO, ["确定"])
+        dlg.exec()
+        
+    @classmethod
+    def warning(cls, parent, title: str, text: str):
+        dlg = cls(parent, title, text, cls.TYPE_WARNING, ["确定"])
+        dlg.exec()
+        
+    @classmethod
+    def critical(cls, parent, title: str, text: str):
+        dlg = cls(parent, title, text, cls.TYPE_ERROR, ["确定"])
+        dlg.exec()
+        
+    @classmethod
+    def question(cls, parent, title: str, text: str, 
+                 buttons: List[str] = None, default_button: str = None) -> Optional[str]:
+        if buttons is None:
+            buttons = ["是", "否"]
+        dlg = cls(parent, title, text, cls.TYPE_QUESTION, buttons, default_button)
+        if dlg.exec() == QDialog.Accepted:
+            return dlg.clicked_button
+        return None
+    
+    def __init__(self, parent, title: str, text: str, msg_type: str = TYPE_INFO,
+                 buttons: List[str] = None, default_button: str = None):
+        super().__init__(parent)
+        self.clicked_button = None
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setFixedSize(380, 180)
+        
+        if buttons is None:
+            buttons = ["确定"]
+            
+        # 样式
+        bg_color = "#F9FAFB"
+        border_color = "#E5E7EB"
+        
+        if msg_type == self.TYPE_WARNING:
+            border_color = "#F59E0B"
+        elif msg_type == self.TYPE_ERROR:
+            border_color = "#EF4444"
+        elif msg_type == self.TYPE_INFO:
+            border_color = "#3B82F6"
+            
+        self.setStyleSheet(f"""
+            QDialog {{
+                background: {bg_color};
+                border-radius: 12px;
+                font-family: "{SYSTEM_FONT}";
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # 顶部彩色条
+        header = QFrame()
+        header.setFixedHeight(4)
+        header.setStyleSheet(f"background: {border_color}; border-top-left-radius: 12px; border-top-right-radius: 12px;")
+        layout.addWidget(header)
+        
+        # 内容区域
+        content = QFrame()
+        content.setStyleSheet("QFrame { background: transparent; border: none; }")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(24, 16, 24, 16)
+        content_layout.setSpacing(12)
+        
+        # 图标和文本行
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+        
+        icon_label = QLabel(self.ICONS.get(msg_type, "ℹ️"))
+        icon_label.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 28))
+        icon_label.setStyleSheet("background: transparent; border: none;")
+        icon_label.setAlignment(Qt.AlignTop)
+        header_row.addWidget(icon_label)
+        
+        text_label = QLabel(text)
+        text_label.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 10))
+        text_label.setStyleSheet("color: #374151; background: transparent; border: none;")
+        text_label.setWordWrap(True)
+        text_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header_row.addWidget(text_label, 1)
+        
+        content_layout.addLayout(header_row)
+        
+        # 按钮区域
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch()
+        
+        for btn_text in reversed(buttons):
+            btn = QPushButton(btn_text)
+            btn.setFixedSize(80, 32)
+            btn.setFont(FONT_BTN)
+            btn.setCursor(Qt.PointingHandCursor)
+            
+            is_primary = (btn_text == default_button) or (btn_text == "确定" and len(buttons) == 1)
+            is_danger = (btn_text in ["是", "停止", "删除"])
+            
+            if is_danger:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: #EF4444; color: white; border-radius: 6px;
+                        font-family: "{SYSTEM_FONT}"; border: none;
+                    }}
+                    QPushButton:hover {{ background: #DC2626; }}
+                    QPushButton:pressed {{ background: #B91C1C; }}
+                """)
+            elif is_primary:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: #3B82F6; color: white; border-radius: 6px;
+                        font-family: "{SYSTEM_FONT}"; border: none;
+                    }}
+                    QPushButton:hover {{ background: #2563EB; }}
+                    QPushButton:pressed {{ background: #1D4ED8; }}
+                """)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: #E5E7EB; color: #374151; border-radius: 6px;
+                        font-family: "{SYSTEM_FONT}"; border: none;
+                    }}
+                    QPushButton:hover {{ background: #D1D5DB; }}
+                    QPushButton:pressed {{ background: #9CA3AF; }}
+                """)
+            
+            def make_handler(btn_text=btn_text):
+                def handler():
+                    self.clicked_button = btn_text
+                    self.accept()
+                return handler
+            
+            btn.clicked.connect(make_handler(btn_text))
+            btn_row.addWidget(btn)
+            
+            if btn_text == default_button:
+                btn.setDefault(True)
+                btn.setFocus()
+        
+        content_layout.addLayout(btn_row)
+        layout.addWidget(content)
+
 # ===================== 自定义对话框 =====================
 
 class HistorySelectDialog(QDialog):
@@ -1448,13 +1631,13 @@ class CloudflareScanUI(QWidget):
 
     def load_ipv4_scan_results(self):
         if self.scanning or self.speed_testing:
-            QMessageBox.warning(self, "提示", "请先停止当前任务")
+            CustomMessageBox.warning(self, "提示", "请先停止当前任务")
             return
         self._load_scan_results(4)
 
     def load_ipv6_scan_results(self):
         if self.scanning or self.speed_testing:
-            QMessageBox.warning(self, "提示", "请先停止当前任务")
+            CustomMessageBox.warning(self, "提示", "请先停止当前任务")
             return
         self._load_scan_results(6)
 
@@ -1462,7 +1645,7 @@ class CloudflareScanUI(QWidget):
         ip_label = "IPv4" if ip_version == 4 else "IPv6"
         history = get_history_list(ip_version, "scan")
         if not history:
-            QMessageBox.information(
+            CustomMessageBox.information(
                 self, "提示",
                 f"未找到{ip_label}扫描结果\n请先执行一次{ip_label}扫描"
             )
@@ -1479,7 +1662,7 @@ class CloudflareScanUI(QWidget):
     def _do_load_scan(self, filepath: str, ip_label: str, ip_version: int):
         data = load_results_from_file(filepath)
         if data is None or not data.get('results'):
-            QMessageBox.warning(self, "错误", "加载失败：文件损坏或结果为空")
+            CustomMessageBox.warning(self, "错误", "加载失败：文件损坏或结果为空")
             return
 
         results = data['results']
@@ -1612,18 +1795,18 @@ class CloudflareScanUI(QWidget):
         if self.speed_testing:
             return
         if not self.scan_results:
-            QMessageBox.warning(self, "提示", "请先扫描或加载扫描结果")
+            CustomMessageBox.warning(self, "提示", "请先扫描或加载扫描结果")
             return
         region_code = self.input_region.text().strip().upper()
         if not region_code:
-            QMessageBox.warning(self, "提示", "请输入地区码（如 HKG, NRT, SIN）")
+            CustomMessageBox.warning(self, "提示", "请输入地区码（如 HKG, NRT, SIN）")
             return
         matched = [r for r in self.scan_results if r.get('iata_code') and r['iata_code'].upper() == region_code]
         if not matched:
             available = sorted(set(r.get('iata_code', '').upper() for r in self.scan_results if r.get('iata_code')))
-            QMessageBox.warning(
+            CustomMessageBox.warning(
                 self, "提示",
-                f"未找到地区码 {region_code} 的IP\n\n可用地区码: {', '.join(available[:30])}"
+                f"未找到地区码 {region_code} 的IP\n可用地区码: {', '.join(available[:30])}"
             )
             return
         self._start_speed_test(region_code)
@@ -1632,7 +1815,7 @@ class CloudflareScanUI(QWidget):
         if self.speed_testing:
             return
         if not self.scan_results:
-            QMessageBox.warning(self, "提示", "请先扫描或加载扫描结果")
+            CustomMessageBox.warning(self, "提示", "请先扫描或加载扫描结果")
             return
         self._start_speed_test(region_code=None)
 
@@ -1868,19 +2051,15 @@ class CloudflareScanUI(QWidget):
     def export_results(self):
         has_scan = bool(self.scan_results)
         has_speed = bool(self.speed_results)
-
         if not has_scan and not has_speed:
-            QMessageBox.warning(self, "提示", "没有可导出的结果")
+            CustomMessageBox.warning(self, "提示", "没有可导出的结果")
             return
-
         dialog = ExportSelectDialog(has_scan, has_speed, self)
         if dialog.exec() != QDialog.Accepted or not dialog.choice:
             return
-
         choice = dialog.choice
         timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         saved_files = []
-
         try:
             if choice in ("scan", "both") and has_scan:
                 scan_path, _ = QFileDialog.getSaveFileName(
@@ -1891,7 +2070,6 @@ class CloudflareScanUI(QWidget):
                 if scan_path:
                     self._write_export_file(scan_path, "scan", self.scan_results)
                     saved_files.append(scan_path)
-
             if choice in ("speed", "both") and has_speed:
                 speed_path, _ = QFileDialog.getSaveFileName(
                     self, "保存测速结果",
@@ -1901,13 +2079,12 @@ class CloudflareScanUI(QWidget):
                 if speed_path:
                     self._write_export_file(speed_path, "speed", self.speed_results)
                     saved_files.append(speed_path)
-
             if saved_files:
                 msg = "已导出:\n" + "\n".join(saved_files)
                 self.status_display.append(f"✅ {msg}")
-                QMessageBox.information(self, "导出成功", msg)
+                CustomMessageBox.information(self, "导出成功", msg)
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"导出失败: {str(e)}")
+            CustomMessageBox.critical(self, "错误", f"导出失败: {str(e)}")
 
     def _write_export_file(self, filepath: str, result_type: str, results: List[Dict]):
         if filepath.endswith('.json'):
