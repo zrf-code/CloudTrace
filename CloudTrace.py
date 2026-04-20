@@ -14,7 +14,7 @@ import socket
 import ssl
 from datetime import datetime
 from typing import List, Optional, Dict
-import csv  # 恢复：导出功能需要使用
+import csv  
 import os
 import platform
 import json
@@ -23,7 +23,7 @@ import shutil
 # ============ Windows 7 兼容性配置 ============
 IS_WIN7 = (platform.system() == "Windows" and platform.release() == "7")
 
-if IS_WIN7:  # 优化：移除冗余的 and sys.platform == 'win32' 判断
+if IS_WIN7:  
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except AttributeError:
@@ -42,10 +42,10 @@ from PySide6.QtWidgets import (
     QLineEdit, QProgressBar, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QHBoxLayout, QHeaderView,
     QTextEdit, QComboBox, QFileDialog, QMessageBox,
-    QSpinBox, QDialog, QFrame  # 恢复：参数面板需要使用 QSpinBox
+    QSpinBox, QDialog, QFrame  
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QFont, QColor  # 恢复：测速结果表格高亮需要使用 QColor
+from PySide6.QtGui import QFont, QColor  
 
 
 def get_system_font():
@@ -59,12 +59,12 @@ def get_system_font():
 
 
 SYSTEM_FONT = get_system_font()
-FONT_FAMILY = SYSTEM_FONT.split(',')[0].strip()  # 优化：提取主字体名，避免后续20+次重复计算
+FONT_FAMILY = SYSTEM_FONT.split(',')[0].strip()  
 
 FONT_TITLE = QFont(FONT_FAMILY, 28)
 FONT_TITLE.setBold(True)
 FONT_BTN = QFont(FONT_FAMILY, 11)
-FONT_SMALL = FONT_BTN  # 优化：原 FONT_SMALL 与 FONT_BTN 完全一致，直接作为别名
+FONT_SMALL = FONT_BTN  
 FONT_STATUS = QFont(FONT_FAMILY, 10)
 FONT_LABEL = QFont(FONT_FAMILY, 10)
 
@@ -1460,7 +1460,7 @@ class CloudflareScanUI(QWidget):
         self.input_region = QLineEdit()
         self.input_region.setFixedSize(75, 28)
         self.input_region.setFont(FONT_BTN)
-        self.input_region.setPlaceholderText("HKG")
+        self.input_region.setPlaceholderText("")
         self.input_region.setAlignment(Qt.AlignCenter)
         self.input_region.textChanged.connect(self.auto_uppercase)
         row4.addLayout(_make_group("地区码", self.input_region))
