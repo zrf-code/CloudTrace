@@ -1,11 +1,14 @@
+<div align="center">
+
 # ☁️ CloudTrace 云迹
 
 [![Python 3.6+](https://img.shields.io/badge/Python-3.6%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **CloudTrace 云迹** 是一款带有现代化图形界面的 Cloudflare IP 扫描与测速工具。  
+融合了 [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 的高效测速逻辑与 [xiaolin-007/CloudFlareScan](https://github.com/xiaolin-007/CloudFlareScan) 的美观 UI 设计理念。
 
-它融合了 [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 的高效测速逻辑与 [xiaolin-007/CloudFlareScan](https://github.com/xiaolin-007/CloudFlareScan) 的美观 UI 设计理念，并在此基础上实现了**全异步高并发扫描**、**完善的 Win7 兼容性**以及**内置的历史记录管理**。
+</div>
 
 ---
 
@@ -46,7 +49,7 @@
 
 | 主界面 | 测速 |
 |------------------|------------------|
-| ![亮色主题截图](screenshots/1.png) | ![暗黑主题截图](screenshots/2.png) |
+| ![亮色主题截图](/screenshots/1.png) | ![暗黑主题截图](/screenshots/2.png) |
 
 
 ---
