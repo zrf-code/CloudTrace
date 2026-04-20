@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QDialog, QFrame  
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QFont, QColor  
+from PySide6.QtGui import QFont, QColor, QIcon  
 
 
 def get_system_font():
