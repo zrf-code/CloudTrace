@@ -14,7 +14,7 @@ import socket
 import ssl
 from datetime import datetime
 from typing import List, Optional, Dict
-import csv
+import csv  # 恢复：导出功能需要使用
 import os
 import platform
 import json
@@ -23,7 +23,7 @@ import shutil
 # ============ Windows 7 兼容性配置 ============
 IS_WIN7 = (platform.system() == "Windows" and platform.release() == "7")
 
-if IS_WIN7 and sys.platform == 'win32':
+if IS_WIN7:  # 优化：移除冗余的 and sys.platform == 'win32' 判断
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except AttributeError:
@@ -42,10 +42,10 @@ from PySide6.QtWidgets import (
     QLineEdit, QProgressBar, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QHBoxLayout, QHeaderView,
     QTextEdit, QComboBox, QFileDialog, QMessageBox,
-    QSpinBox, QDialog, QFrame
+    QSpinBox, QDialog, QFrame  # 恢复：参数面板需要使用 QSpinBox
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QFont, QColor, QIntValidator
+from PySide6.QtGui import QFont, QColor  # 恢复：测速结果表格高亮需要使用 QColor
 
 
 def get_system_font():
@@ -59,12 +59,14 @@ def get_system_font():
 
 
 SYSTEM_FONT = get_system_font()
-FONT_TITLE = QFont(SYSTEM_FONT.split(',')[0].strip(), 28)
+FONT_FAMILY = SYSTEM_FONT.split(',')[0].strip()  # 优化：提取主字体名，避免后续20+次重复计算
+
+FONT_TITLE = QFont(FONT_FAMILY, 28)
 FONT_TITLE.setBold(True)
-FONT_BTN = QFont(SYSTEM_FONT.split(',')[0].strip(), 11)
-FONT_STATUS = QFont(SYSTEM_FONT.split(',')[0].strip(), 10)
-FONT_LABEL = QFont(SYSTEM_FONT.split(',')[0].strip(), 10)
-FONT_SMALL = QFont(SYSTEM_FONT.split(',')[0].strip(), 11)
+FONT_BTN = QFont(FONT_FAMILY, 11)
+FONT_SMALL = FONT_BTN  # 优化：原 FONT_SMALL 与 FONT_BTN 完全一致，直接作为别名
+FONT_STATUS = QFont(FONT_FAMILY, 10)
+FONT_LABEL = QFont(FONT_FAMILY, 10)
 
 BTN_W = 120
 BTN_H = 32
@@ -171,23 +173,21 @@ PORT_OPTIONS = ["443", "2053", "2083", "2087", "2096", "8443"]
 
 def ensure_save_dir():
     os.makedirs(SAVE_DIR, exist_ok=True)
-    # 每次启动时清理旧格式文件和超量文件
     _cleanup_legacy_files()
     _cleanup_all_types()
 
 
 def save_results_to_file(results: List[Dict], ip_version: int, result_type: str) -> bool:
-    """保存结果到JSON文件"""
     ensure_save_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.now()  # 修复：只调用一次datetime.now()，防止跨秒导致文件名与内容时间戳不一致
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
     ip_label = "ipv4" if ip_version == 4 else "ipv6"
-    type_label = "scan" if result_type == "scan" else "speed"
+    type_label = result_type  # 优化：移除冗余的三元表达式
 
-    # 带时间戳的历史文件
     history_file = os.path.join(SAVE_DIR, f"{ip_label}_{type_label}_{timestamp}.json")
 
     save_data = {
-        'save_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'save_time': now.strftime("%Y-%m-%d %H:%M:%S"),
         'ip_version': ip_version,
         'result_type': result_type,
         'count': len(results),
@@ -198,16 +198,13 @@ def save_results_to_file(results: List[Dict], ip_version: int, result_type: str)
         with open(history_file, 'w', encoding='utf-8') as f:
             json.dump(save_data, f, ensure_ascii=False, indent=2)
 
-        # 更新 latest 副本
         if result_type == "scan":
             latest_file = IPV4_SCAN_FILE if ip_version == 4 else IPV6_SCAN_FILE
         else:
             latest_file = IPV4_SPEED_FILE if ip_version == 4 else IPV6_SPEED_FILE
         shutil.copy2(history_file, latest_file)
 
-        # ★ 保存后立即清理
         _cleanup_by_prefix(ip_label, type_label)
-
         return True
     except Exception as e:
         print(f"[保存] 保存失败: {e}")
@@ -215,14 +212,9 @@ def save_results_to_file(results: List[Dict], ip_version: int, result_type: str)
 
 
 def _cleanup_by_prefix(ip_label: str, type_label: str):
-    """
-    ★ 核心清理函数：清理指定前缀的旧历史文件
-    不再使用 try/except: pass 吞掉错误，每步都有日志
-    """
     prefix = f"{ip_label}_{type_label}_"
     timestamped_files = []
 
-    # 第1步：列出所有匹配的带时间戳文件
     try:
         all_files = os.listdir(SAVE_DIR)
     except Exception as e:
@@ -230,23 +222,18 @@ def _cleanup_by_prefix(ip_label: str, type_label: str):
         return
 
     for f in all_files:
-        # 匹配: ipv4_scan_20250101_120000.json
-        # 排除: latest 文件
         if f.startswith(prefix) and f.endswith(".json") and "latest" not in f:
             full_path = os.path.join(SAVE_DIR, f)
             if os.path.isfile(full_path):
                 timestamped_files.append(full_path)
 
     total = len(timestamped_files)
-
     if total <= MAX_HISTORY:
-        return  # 未超量，无需清理
+        return
 
-    # 第2步：按文件名降序排列（文件名含时间戳，降序=最新在前）
     timestamped_files.sort(key=lambda x: os.path.basename(x), reverse=True)
-
-    # 第3步：删除超量文件
     to_delete = timestamped_files[MAX_HISTORY:]
+    
     deleted = 0
     for old_file in to_delete:
         try:
@@ -260,18 +247,12 @@ def _cleanup_by_prefix(ip_label: str, type_label: str):
 
 
 def _cleanup_all_types():
-    """清理所有类型的历史文件"""
     for ip_label in ("ipv4", "ipv6"):
         for type_label in ("scan", "speed"):
             _cleanup_by_prefix(ip_label, type_label)
 
 
 def _cleanup_legacy_files():
-    """
-    ★ 清理旧版命名格式的文件（文件名中不含 scan/speed 标识）
-    旧格式: ipv4_20250101_120000.json, ipv4_latest.json
-    新格式: ipv4_scan_20250101_120000.json, ipv4_scan_latest.json
-    """
     try:
         all_files = os.listdir(SAVE_DIR)
     except Exception as e:
@@ -279,7 +260,6 @@ def _cleanup_legacy_files():
         return
 
     for f in all_files:
-        # 检测旧格式: 以ipv4_或ipv6_开头，但不含scan/speed
         is_legacy = False
         for ip in ("ipv4", "ipv6"):
             if f.startswith(f"{ip}_") and "scan" not in f and "speed" not in f:
@@ -311,19 +291,17 @@ def load_results_from_file(filepath: str) -> Optional[Dict]:
 
 
 def get_history_list(ip_version: int, result_type: str) -> List[Dict]:
-    """获取历史记录列表（排除latest文件）"""
     ensure_save_dir()
     ip_label = "ipv4" if ip_version == 4 else "ipv6"
-    type_label = "scan" if result_type == "scan" else "speed"
+    type_label = result_type
     prefix = f"{ip_label}_{type_label}_"
     history = []
 
     try:
         all_files = os.listdir(SAVE_DIR)
-    except:
+    except Exception:  # 修复：禁止使用裸except吞掉键盘中断
         return history
 
-    # 按文件名降序（=时间降序）
     for f in sorted(all_files, reverse=True):
         if f.startswith(prefix) and f.endswith(".json") and "latest" not in f:
             filepath = os.path.join(SAVE_DIR, f)
@@ -336,7 +314,7 @@ def get_history_list(ip_version: int, result_type: str) -> List[Dict]:
                     'save_time': data.get('save_time', '未知'),
                     'count': data.get('count', 0),
                 })
-            except:
+            except Exception:  # 修复：禁止使用裸except
                 continue
 
     return history
@@ -344,8 +322,6 @@ def get_history_list(ip_version: int, result_type: str) -> List[Dict]:
 
 # ===================== ★ 通用美化消息框 =====================
 class CustomMessageBox(QDialog):
-    """通用美化消息对话框，替代 QMessageBox"""
-    
     TYPE_INFO = "info"
     TYPE_WARNING = "warning"
     TYPE_ERROR = "error"
@@ -361,16 +337,6 @@ class CustomMessageBox(QDialog):
     @classmethod
     def show(cls, parent, title: str, text: str, msg_type: str = TYPE_INFO, 
              buttons: List[str] = None, default_button: str = None) -> Optional[str]:
-        """
-        显示美化对话框
-        :param parent: 父窗口
-        :param title: 窗口标题
-        :param text: 消息内容
-        :param msg_type: 类型 (info/warning/error/question)
-        :param buttons: 按钮列表，如 ["确定", "取消"]
-        :param default_button: 默认按钮（回车触发）
-        :return: 点击的按钮文本，或 None
-        """
         dlg = cls(parent, title, text, msg_type, buttons, default_button)
         if dlg.exec() == QDialog.Accepted:
             return dlg.clicked_button
@@ -412,7 +378,6 @@ class CustomMessageBox(QDialog):
         if buttons is None:
             buttons = ["确定"]
             
-        # 样式
         bg_color = "#F9FAFB"
         border_color = "#E5E7EB"
         
@@ -427,7 +392,7 @@ class CustomMessageBox(QDialog):
             QDialog {{
                 background: {bg_color};
                 border-radius: 12px;
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
             }}
         """)
         
@@ -435,31 +400,28 @@ class CustomMessageBox(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # 顶部彩色条
         header = QFrame()
         header.setFixedHeight(4)
         header.setStyleSheet(f"background: {border_color}; border-top-left-radius: 12px; border-top-right-radius: 12px;")
         layout.addWidget(header)
         
-        # 内容区域
         content = QFrame()
         content.setStyleSheet("QFrame { background: transparent; border: none; }")
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(24, 16, 24, 16)
         content_layout.setSpacing(12)
         
-        # 图标和文本行
         header_row = QHBoxLayout()
         header_row.setSpacing(12)
         
         icon_label = QLabel(self.ICONS.get(msg_type, "ℹ️"))
-        icon_label.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 28))
+        icon_label.setFont(QFont(FONT_FAMILY, 28))
         icon_label.setStyleSheet("background: transparent; border: none;")
         icon_label.setAlignment(Qt.AlignTop)
         header_row.addWidget(icon_label)
         
         text_label = QLabel(text)
-        text_label.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 10))
+        text_label.setFont(QFont(FONT_FAMILY, 10))
         text_label.setStyleSheet("color: #374151; background: transparent; border: none;")
         text_label.setWordWrap(True)
         text_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -467,7 +429,6 @@ class CustomMessageBox(QDialog):
         
         content_layout.addLayout(header_row)
         
-        # 按钮区域
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         btn_row.addStretch()
@@ -485,7 +446,7 @@ class CustomMessageBox(QDialog):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: #EF4444; color: white; border-radius: 6px;
-                        font-family: "{SYSTEM_FONT}"; border: none;
+                        font-family: "{FONT_FAMILY}"; border: none;
                     }}
                     QPushButton:hover {{ background: #DC2626; }}
                     QPushButton:pressed {{ background: #B91C1C; }}
@@ -494,7 +455,7 @@ class CustomMessageBox(QDialog):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: #3B82F6; color: white; border-radius: 6px;
-                        font-family: "{SYSTEM_FONT}"; border: none;
+                        font-family: "{FONT_FAMILY}"; border: none;
                     }}
                     QPushButton:hover {{ background: #2563EB; }}
                     QPushButton:pressed {{ background: #1D4ED8; }}
@@ -503,7 +464,7 @@ class CustomMessageBox(QDialog):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: #E5E7EB; color: #374151; border-radius: 6px;
-                        font-family: "{SYSTEM_FONT}"; border: none;
+                        font-family: "{FONT_FAMILY}"; border: none;
                     }}
                     QPushButton:hover {{ background: #D1D5DB; }}
                     QPushButton:pressed {{ background: #9CA3AF; }}
@@ -537,7 +498,7 @@ class HistorySelectDialog(QDialog):
         self.history = history
 
         self.setStyleSheet(f"""
-        QDialog {{ background: #F9FAFB; font-family: "{SYSTEM_FONT}", sans-serif; }}
+        QDialog {{ background: #F9FAFB; font-family: "{FONT_FAMILY}", sans-serif; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -545,7 +506,6 @@ class HistorySelectDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
 
         title_frame = QFrame()
-        # ★ 修改：应用深蓝色渐变背景
         title_frame.setObjectName("dialogTitleFrame")
         title_frame.setStyleSheet("""
             #dialogTitleFrame {
@@ -559,15 +519,13 @@ class HistorySelectDialog(QDialog):
         title_layout.setContentsMargins(14, 10, 14, 10)
         title_layout.setSpacing(2)
         
-        # ★ 修改：调整字体颜色为白色，加粗
         title_text = QLabel(f"📋 {ip_label}{type_label}历史记录")
-        title_text.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 13))
+        title_text.setFont(QFont(FONT_FAMILY, 13))
         title_text.setStyleSheet("color: white; font-weight: bold; border: none; background: transparent;")
         title_layout.addWidget(title_text)
         
-        # ★ 修改：副标题颜色调整为半透明白色
         subtitle = QLabel(f"共 {len(history)} 份记录，请选择要加载的版本")
-        subtitle.setFont(FONT_SMALL)
+        subtitle.setFont(FONT_SMALL)  # 优化：使用别名
         subtitle.setStyleSheet("color: rgba(255,255,255,180); border: none; background: transparent;")
         title_layout.addWidget(subtitle)
         
@@ -589,13 +547,13 @@ class HistorySelectDialog(QDialog):
         self.table.setStyleSheet(f"""
         QTableWidget {{
             background: white; border: 1px solid #E5E7EB; border-radius: 6px;
-            gridline-color: #F3F4F6; font-family: "{SYSTEM_FONT}", sans-serif;
+            gridline-color: #F3F4F6; font-family: "{FONT_FAMILY}", sans-serif;
             selection-background-color: #3B82F6; selection-color: white;
             alternate-background-color: #F9FAFB;
         }}
         QHeaderView::section {{
             background: #F3F4F6; color: #374151; border: none; height: 30px;
-            padding-left: 10px; font-family: "{SYSTEM_FONT}"; font-weight: bold;
+            padding-left: 10px; font-family: "{FONT_FAMILY}"; font-weight: bold;
             border-bottom: 2px solid #E5E7EB;
         }}
         QTableWidget::item {{ padding: 6px; border-bottom: 1px solid #F3F4F6; }}
@@ -627,7 +585,7 @@ class HistorySelectDialog(QDialog):
         cancel_btn.setStyleSheet(f"""
         QPushButton {{
             background: #F3F4F6; color: #374151; border-radius: 6px;
-            font-family: "{SYSTEM_FONT}"; border: 1px solid #D1D5DB;
+            font-family: "{FONT_FAMILY}"; border: 1px solid #D1D5DB;
         }}
         QPushButton:hover {{ background: #E5E7EB; }}
         """)
@@ -643,7 +601,7 @@ class HistorySelectDialog(QDialog):
         select_btn.setStyleSheet(f"""
         QPushButton {{
             background: #3B82F6; color: white; border-radius: 6px;
-            font-family: "{SYSTEM_FONT}"; border: none;
+            font-family: "{FONT_FAMILY}"; border: none;
         }}
         QPushButton:hover {{ background: #2563EB; }}
         """)
@@ -667,7 +625,7 @@ class ExportSelectDialog(QDialog):
         self.choice = None
 
         self.setStyleSheet(f"""
-        QDialog {{ background: #F9FAFB; font-family: "{SYSTEM_FONT}", sans-serif; }}
+        QDialog {{ background: #F9FAFB; font-family: "{FONT_FAMILY}", sans-serif; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -675,7 +633,7 @@ class ExportSelectDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
 
         title = QLabel("请选择要导出的内容")
-        title.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 12))
+        title.setFont(QFont(FONT_FAMILY, 12))
         title.setStyleSheet("color: #111827; font-weight: bold;")
         layout.addWidget(title)
 
@@ -685,7 +643,7 @@ class ExportSelectDialog(QDialog):
             padding: 8px; text-align: center;
         }
         QPushButton:hover { opacity: 0.9; }
-        """ % SYSTEM_FONT
+        """ % FONT_FAMILY
 
         if has_scan and has_speed:
             btn_both = QPushButton("📊 扫描结果 + 测速结果（分别保存）")
@@ -861,9 +819,7 @@ async def get_iata_code_async(session: aiohttp.ClientSession, ip: str, timeout: 
 
 
 def get_iata_translation(iata_code: str) -> str:
-    if iata_code in AIRPORT_CODES:
-        return AIRPORT_CODES[iata_code]
-    return iata_code
+    return AIRPORT_CODES.get(iata_code, iata_code)
 
 
 async def async_tcp_ping(ip: str, port: int, timeout: float = 1.0) -> Optional[float]:
@@ -874,9 +830,7 @@ async def async_tcp_ping(ip: str, port: int, timeout: float = 1.0) -> Optional[f
         writer.close()
         await writer.wait_closed()
         return round(latency, 2)
-    except (asyncio.TimeoutError, ConnectionRefusedError, OSError, ConnectionError):
-        return None
-    except Exception:
+    except Exception:  # 优化：合并冗余的异常捕获
         return None
 
 
@@ -1040,11 +994,9 @@ class IPv4Scanner(BaseScanner):
             try:
                 network = ipaddress.ip_network(cidr, strict=False)
                 for subnet in network.subnets(new_prefix=24):
-                    if subnet.num_addresses > 2:
-                        hosts = list(subnet.hosts())
-                        if hosts:
-                            for ip in random.sample(hosts, min(2, len(hosts))):
-                                ip_list.append(str(ip))
+                    hosts = list(subnet.hosts())
+                    for ip in random.sample(hosts, min(2, len(hosts))):
+                        ip_list.append(str(ip))
             except ValueError as e:
                 if self.log_callback:
                     self.log_callback(f"处理CIDR {cidr} 时出错: {e}")
@@ -1082,6 +1034,15 @@ class IPv6Scanner(BaseScanner):
 
 # ===================== 工作线程 =====================
 
+def get_event_loop_policy():
+    """提取公共的事件循环策略获取逻辑"""
+    if sys.platform == 'win32':
+        if IS_WIN7:
+            return asyncio.WindowsSelectorEventLoopPolicy()
+        else:
+            return asyncio.WindowsProactorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
+
 
 class ScanWorker(QThread):
     progress_update = Signal(int, int, int, float)
@@ -1093,21 +1054,11 @@ class ScanWorker(QThread):
         self.scanner = scanner
 
     def run(self):
-        # ★ 修复：在 Worker 内部设置回调，self 指向 Worker（有 Signal）
         self.scanner.log_callback = lambda msg: self.status_message.emit(msg)
         self.scanner.progress_callback = lambda c, t, s, sp: self.progress_update.emit(c, t, s, sp)
 
-        if sys.platform == 'win32':
-            if IS_WIN7:
-                try:
-                    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-                except:
-                    pass
-            else:
-                try:
-                    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-                except:
-                    pass
+        asyncio.set_event_loop_policy(get_event_loop_policy())
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -1159,18 +1110,20 @@ class SpeedTestWorker(QThread):
             ss = ctx.wrap_socket(sock, server_hostname=self.test_host)
             ss.sendall(req)
             start = time.time()
-            data = b""
-            header_done = False
+            
+            header_buf = b""  # 优化：分离 header_buf，头部解析完成后不再做无效拼接
             body = 0
+            header_done = False
+            
             while time.time() - start < self.download_time_limit:
                 buf = ss.recv(8192)
                 if not buf:
                     break
                 if not header_done:
-                    data += buf
-                    if b"\r\n\r\n" in data:
+                    header_buf += buf
+                    if b"\r\n\r\n" in header_buf:
                         header_done = True
-                        body += len(data.split(b"\r\n\r\n", 1)[1])
+                        body += len(header_buf.split(b"\r\n\r\n", 1)[1])
                 else:
                     body += len(buf)
             ss.close()
@@ -1181,11 +1134,7 @@ class SpeedTestWorker(QThread):
             return 0.0
 
     def run(self):
-        if IS_WIN7 and sys.platform == 'win32':
-            try:
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-            except:
-                pass
+        # 优化：移除同步线程中无意义的 asyncio.set_event_loop_policy 设置
         try:
             if not self.results:
                 self.status_message.emit("错误：没有可用的IP进行测速")
@@ -1254,19 +1203,7 @@ class SpeedTestWorker(QThread):
 
 # ===================== 主界面 =====================
 
-TABLE_STYLE = f"""
-QTableWidget {{
-    background: #0B3C5D; border-radius: 8px; color: white;
-    gridline-color: #1E4D6B;
-}}
-QHeaderView::section {{
-    background: #0F4C75; color: white; border: none; height: 32px;
-    padding-left: 10px; font-family: "{SYSTEM_FONT}";
-}}
-QTableWidget::item {{
-    padding: 5px; border-bottom: 1px solid #1E4D6B;
-    font-family: "{SYSTEM_FONT}", sans-serif;
-}}
+SCROLLBAR_CSS = f"""
 QScrollBar:vertical {{ background: #0F4C75; width: 8px; border-radius: 3px; }}
 QScrollBar::handle:vertical {{ background: #1E90FF; min-height: 20px; border-radius: 3px; }}
 QScrollBar::handle:vertical:hover {{ background: #00BFFF; }}
@@ -1274,16 +1211,28 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
 """
 
+TABLE_STYLE = f"""
+QTableWidget {{
+    background: #0B3C5D; border-radius: 8px; color: white;
+    gridline-color: #1E4D6B;
+}}
+QHeaderView::section {{
+    background: #0F4C75; color: white; border: none; height: 32px;
+    padding-left: 10px; font-family: "{FONT_FAMILY}";
+}}
+QTableWidget::item {{
+    padding: 5px; border-bottom: 1px solid #1E4D6B;
+    font-family: "{FONT_FAMILY}", sans-serif;
+}}
+{SCROLLBAR_CSS}
+"""
+
 LOG_STYLE = f"""
 QTextEdit {{
     background: #0B3C5D; border: 1px solid #0F4C75; border-radius: 6px;
-    padding: 10px; color: #ECF0F1; font-family: "{SYSTEM_FONT}", sans-serif;
+    padding: 10px; color: #ECF0F1; font-family: "{FONT_FAMILY}", sans-serif;
 }}
-QScrollBar:vertical {{ background: #0F4C75; width: 8px; border-radius: 3px; }}
-QScrollBar::handle:vertical {{ background: #1E90FF; min-height: 20px; border-radius: 3px; }}
-QScrollBar::handle:vertical:hover {{ background: #00BFFF; }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
+{SCROLLBAR_CSS}
 """
 
 
@@ -1295,7 +1244,7 @@ class CloudflareScanUI(QWidget):
         self.setMinimumSize(460, 650)
 
         self.setStyleSheet(f"""
-        QWidget {{ font-family: "{SYSTEM_FONT}", sans-serif; background: #F9FAFB; }}
+        QWidget {{ font-family: "{FONT_FAMILY}", sans-serif; background: #F9FAFB; }}
         """)
 
         self.scan_worker = None
@@ -1307,9 +1256,7 @@ class CloudflareScanUI(QWidget):
         self.current_scan_port = 443
         self.current_ip_version = 4
 
-        # ★ 启动时确保目录存在并清理
         ensure_save_dir()
-
         self.init_ui()
 
     def make_btn(self, text, color, text_color="white", enabled=True, width=BTN_W):
@@ -1321,7 +1268,7 @@ class CloudflareScanUI(QWidget):
         btn.setStyleSheet(f"""
         QPushButton {{
             background: {color}; color: {text_color}; border-radius: 6px;
-            font-family: "{SYSTEM_FONT}"; border: none;
+            font-family: "{FONT_FAMILY}"; border: none;
         }}
         QPushButton:disabled {{ background: #E5E7EB; color: #9CA3AF; }}
         QPushButton:hover:!disabled {{ background: {color}; border: 1px solid rgba(255,255,255,0.3); }}
@@ -1337,7 +1284,7 @@ class CloudflareScanUI(QWidget):
         btn.setStyleSheet(f"""
         QPushButton {{
             background: #EF4444; color: white; border-radius: 6px;
-            font-family: "{SYSTEM_FONT}"; border: none;
+            font-family: "{FONT_FAMILY}"; border: none;
         }}
         QPushButton:disabled {{ background: #E5E7EB; color: #9CA3AF; }}
         QPushButton:hover:!disabled {{ background: #DC2626; }}
@@ -1347,7 +1294,7 @@ class CloudflareScanUI(QWidget):
     def _make_label(self, text):
         label = QLabel(text)
         label.setFont(FONT_SMALL)
-        label.setStyleSheet(f'color: #E2E8F0; font-family: "{SYSTEM_FONT}";')
+        label.setStyleSheet(f'color: #E2E8F0; font-family: "{FONT_FAMILY}";')
         return label
 
     def init_ui(self):
@@ -1355,7 +1302,6 @@ class CloudflareScanUI(QWidget):
         main.setContentsMargins(14, 14, 14, 14)
         main.setSpacing(10)
         
-        # ★ 新增：顶部标题卡片区域
         title_frame = QFrame()
         title_frame.setObjectName("titleFrame")
         title_frame.setStyleSheet("""
@@ -1367,34 +1313,27 @@ class CloudflareScanUI(QWidget):
         """)
         
         title_layout = QVBoxLayout(title_frame)
-        title_layout.setContentsMargins(20, 14, 20, 14) # 稍微增加内边距
+        title_layout.setContentsMargins(20, 14, 20, 14)
         title_layout.setSpacing(2)
         
-        # 主标题
         title = QLabel('☁ CloudTrace 云迹')
         title.setFont(FONT_TITLE) 
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("color: white; background: transparent; border: none;")
         title_layout.addWidget(title)
         
-        # 副标题
         subtitle = QLabel('V1.0  ·  Cloudflare IP 优选扫描工具')
-        # 定义一个适合副标题的字体 (如果没有 FONT_SUBTITLE，可以用 FONT_LABEL)
-        font_subtitle = QFont(SYSTEM_FONT.split(',')[0].strip(), 10) 
-        subtitle.setFont(font_subtitle)
+        subtitle.setFont(QFont(FONT_FAMILY, 10))  # 优化：提取字体计算
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("color: rgba(255,255,255,180); background: transparent; border: none;")
         title_layout.addWidget(subtitle)
         
         main.addWidget(title_frame)
-        # ★ 标题卡片区域结束
 
-        # 控制区域
         control = QVBoxLayout()
         control.setSpacing(SPACING)
         control.setAlignment(Qt.AlignCenter)
 
-        # ===================== 第一行：扫描按钮 =====================
         row1 = QHBoxLayout()
         row1.setSpacing(SPACING)
         row1.addStretch()
@@ -1418,7 +1357,6 @@ class CloudflareScanUI(QWidget):
         
         control.addLayout(row1)
 
-        # ===================== 第二行：加载历史 =====================
         row2 = QHBoxLayout()
         row2.setSpacing(SPACING)
         row2.addStretch()
@@ -1436,7 +1374,6 @@ class CloudflareScanUI(QWidget):
         
         control.addLayout(row2)
 
-        # ===================== 第三行：测速 + 导出 =====================
         row3 = QHBoxLayout()
         row3.setSpacing(SPACING)
         row3.addStretch()
@@ -1460,16 +1397,13 @@ class CloudflareScanUI(QWidget):
         
         control.addLayout(row3)
 
-        # ===================== ★ 第四行：参数设置（修复重叠与可读性） =====================
-
-        # 定义参数面板样式
-        PARAM_BG = "#2153a5"        # 面板背景色
-        PARAM_BORDER = "#1E4D6B"    # 面板边框色
-        INPUT_BG = "#0F2B44"        # 输入框背景
-        INPUT_BORDER = "#1A3D5C"    # 输入框边框
-        TEXT_COLOR = "#F1F5F9"      # 输入框文字颜色
-        LABEL_COLOR = "#FFFFFF"     # 标签颜色（亮白，确保清晰可见）
-        FOCUS_COLOR = "#3B82F6"     # 聚焦高亮
+        PARAM_BG = "#2153a5"
+        PARAM_BORDER = "#1E4D6B"
+        INPUT_BG = "#0F2B44"
+        INPUT_BORDER = "#1A3D5C"
+        TEXT_COLOR = "#F1F5F9"
+        LABEL_COLOR = "#FFFFFF"
+        FOCUS_COLOR = "#3B82F6"
 
         param_style = f"""
             QFrame#paramRow {{
@@ -1481,8 +1415,7 @@ class CloudflareScanUI(QWidget):
             QLabel {{
                 color: {LABEL_COLOR};
                 font-size: 11px;
-
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
                 background: transparent;
                 border: none;
                 font-weight: 500;
@@ -1493,33 +1426,13 @@ class CloudflareScanUI(QWidget):
                 border: 1px solid {INPUT_BORDER};
                 border-radius: 4px;
                 padding: 2px 6px;
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
             }}
             QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
                 border: 1px solid {FOCUS_COLOR};
             }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         """
 
-        # 创建参数容器
         param_frame = QFrame()
         param_frame.setObjectName("paramRow")
         param_frame.setStyleSheet(param_style)
@@ -1528,12 +1441,10 @@ class CloudflareScanUI(QWidget):
         row4_layout.setContentsMargins(0, 4, 0, 4)
         row4_layout.setSpacing(6)
 
-        # --- 控件行 ---
         row4 = QHBoxLayout()
-        row4.setSpacing(20) # 增加组之间的间距
-        row4.addStretch() # 居中对齐
+        row4.setSpacing(20)
+        row4.addStretch()
 
-        # 辅助函数：创建一个垂直分组（标签在上，输入框在下）
         def _make_group(label_text, widget):
             group_layout = QVBoxLayout()
             group_layout.setSpacing(2)
@@ -1546,7 +1457,6 @@ class CloudflareScanUI(QWidget):
             group_layout.addWidget(widget)
             return group_layout
 
-        # 1. 地区码
         self.input_region = QLineEdit()
         self.input_region.setFixedSize(75, 28)
         self.input_region.setFont(FONT_BTN)
@@ -1555,23 +1465,13 @@ class CloudflareScanUI(QWidget):
         self.input_region.textChanged.connect(self.auto_uppercase)
         row4.addLayout(_make_group("地区码", self.input_region))
 
-
-        # 2. 数量
-
-
-
         self.input_speed_count = QSpinBox()
         self.input_speed_count.setFixedSize(60, 28)
         self.input_speed_count.setFont(FONT_SMALL)
         self.input_speed_count.setRange(1, 50)
         self.input_speed_count.setValue(10)
         self.input_speed_count.setAlignment(Qt.AlignCenter)
-
         row4.addLayout(_make_group("数量", self.input_speed_count))
-
-        # 3. 端口
-
-
 
         self.combo_port = QComboBox()
         self.combo_port.setFixedSize(75, 28)
@@ -1581,10 +1481,6 @@ class CloudflareScanUI(QWidget):
         self.combo_port.setCurrentText("443")
         row4.addLayout(_make_group("端口", self.combo_port))
 
-
-
-
-        # 4. 并发
         self.input_workers = QSpinBox()
         self.input_workers.setFixedSize(65, 28)
         self.input_workers.setFont(FONT_SMALL)
@@ -1594,10 +1490,6 @@ class CloudflareScanUI(QWidget):
         self.input_workers.setAlignment(Qt.AlignCenter)
         row4.addLayout(_make_group("并发", self.input_workers))
 
-
-
-
-        # 5. 阈值
         self.input_threshold = QSpinBox()
         self.input_threshold.setFixedSize(65, 28)
         self.input_threshold.setFont(FONT_SMALL)
@@ -1607,16 +1499,13 @@ class CloudflareScanUI(QWidget):
         self.input_threshold.setAlignment(Qt.AlignCenter)
         row4.addLayout(_make_group("阈值ms", self.input_threshold))
 
-
-        row4.addStretch() # 右侧留白
+        row4.addStretch()
         row4_layout.addLayout(row4)
 
-        # 将参数容器添加到总布局
         control.addWidget(param_frame)
         
         main.addLayout(control)
 
-        # 进度条
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setTextVisible(False)
@@ -1626,21 +1515,19 @@ class CloudflareScanUI(QWidget):
         """)
         main.addWidget(self.progress_bar)
 
-        # 状态栏
         status_frame = QHBoxLayout()
         self.status_label = QLabel("就绪")
-        self.status_label.setStyleSheet(f'color: #6B7280; font-size: 12px; padding: 4px; font-family: "{SYSTEM_FONT}";')
+        self.status_label.setStyleSheet(f'color: #6B7280; font-size: 12px; padding: 4px; font-family: "{FONT_FAMILY}";')
         self.speed_label = QLabel("速度: 0 IP/秒")
-        self.speed_label.setStyleSheet(f'color: #6B7280; font-size: 12px; padding: 4px; font-family: "{SYSTEM_FONT}";')
+        self.speed_label.setStyleSheet(f'color: #6B7280; font-size: 12px; padding: 4px; font-family: "{FONT_FAMILY}";')
         status_frame.addWidget(self.status_label)
         status_frame.addStretch()
         status_frame.addWidget(self.speed_label)
         main.addLayout(status_frame)
 
-        # 日志
         log_label = QLabel("扫描状态和统计信息")
         log_label.setFont(FONT_LABEL)
-        log_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{SYSTEM_FONT}";')
+        log_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{FONT_FAMILY}";')
         main.addWidget(log_label)
         self.status_display = QTextEdit()
         self.status_display.setFont(FONT_STATUS)
@@ -1649,10 +1536,9 @@ class CloudflareScanUI(QWidget):
         self.status_display.setStyleSheet(LOG_STYLE)
         main.addWidget(self.status_display)
 
-        # 测速结果表格
         speed_label = QLabel("测速结果")
         speed_label.setFont(FONT_LABEL)
-        speed_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{SYSTEM_FONT}";')
+        speed_label.setStyleSheet(f'color: #111827; font-size: 14px; font-family: "{FONT_FAMILY}";')
         main.addWidget(speed_label)
         self.speed_table = QTableWidget()
         self.speed_table.setColumnCount(7)
@@ -1670,14 +1556,7 @@ class CloudflareScanUI(QWidget):
         if text != text.upper():
             self.input_region.setText(text.upper())
 
-    # ===================== ★ 修复：地区分布格式 =====================
-
     def _format_region_stats(self, results: List[Dict]) -> List[str]:
-        """
-        生成地区分布统计
-        格式: HKG  香港: 5
-        地区码在前，双空格分隔，方便双击选中地区码直接复制
-        """
         region_stats = {}
         for r in results:
             code = r.get('iata_code')
@@ -1692,8 +1571,6 @@ class CloudflareScanUI(QWidget):
             lines.append(f"  {code}  {name}: {cnt}")
         return lines
 
-    # ===================== UI 状态管理 =====================
-
     def update_ui_state(self, busy=False):
         self.btn_ipv4.setEnabled(not busy)
         self.btn_ipv6.setEnabled(not busy)
@@ -1705,8 +1582,6 @@ class CloudflareScanUI(QWidget):
         self.btn_area.setEnabled(not busy and has_results)
         self.btn_full.setEnabled(not busy and has_results)
         self.btn_export.setEnabled(not busy and (has_results or bool(self.speed_results)))
-
-    # ===================== 加载历史结果 =====================
 
     def load_ipv4_scan_results(self):
         if self.scanning or self.speed_testing:
@@ -1776,8 +1651,6 @@ class CloudflareScanUI(QWidget):
         self.speed_label.setText(f"保存时间: {save_time}")
         self.update_ui_state(busy=False)
 
-    # ===================== 扫描相关 =====================
-
     def start_ipv4_scan(self):
         if self.scanning or self.speed_testing:
             return
@@ -1787,7 +1660,6 @@ class CloudflareScanUI(QWidget):
         workers = self.input_workers.value()
         self.current_scan_port = port
 
-        # ★ 修复：不传 log_callback / progress_callback，由 Worker.run() 内部设置
         scanner = IPv4Scanner(
             port=port,
             max_workers=workers,
@@ -1804,7 +1676,6 @@ class CloudflareScanUI(QWidget):
         workers = self.input_workers.value()
         self.current_scan_port = port
 
-        # ★ 修复：同上
         scanner = IPv6Scanner(
             port=port,
             max_workers=workers,
@@ -1867,8 +1738,6 @@ class CloudflareScanUI(QWidget):
         self.status_display.append(msg)
         sb = self.status_display.verticalScrollBar()
         sb.setValue(sb.maximum())
-
-    # ===================== 测速相关 =====================
 
     def start_region_speed_test(self):
         if self.speed_testing:
@@ -1982,13 +1851,10 @@ class CloudflareScanUI(QWidget):
 
             self.speed_table.setItem(i, 6, QTableWidgetItem(r.get('test_type', '')))
 
-    # ===================== 停止 / 复制 / 导出 =====================
-
     def confirm_stop_all_tasks(self):
         if not self.scanning and not self.speed_testing:
             return
         
-                # 创建自定义确认对话框
         dialog = QDialog(self)
         dialog.setWindowTitle("确认停止")
         dialog.setFixedSize(400, 200)
@@ -1997,7 +1863,7 @@ class CloudflareScanUI(QWidget):
             QDialog {{
                 background: #F9FAFB;
                 border-radius: 12px;
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
             }}
         """)
         
@@ -2005,7 +1871,6 @@ class CloudflareScanUI(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # 顶部渐变标题栏
         header_frame = QFrame()
         header_frame.setStyleSheet("""
             QFrame {
@@ -2020,7 +1885,7 @@ class CloudflareScanUI(QWidget):
         header_layout.setSpacing(4)
         
         header_title = QLabel("⚠️ 确认停止任务")
-        header_title.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 12))
+        header_title.setFont(QFont(FONT_FAMILY, 12))  # 优化：提取字体计算
         header_title.setStyleSheet("color: white; font-weight: bold; background: transparent; border: none;")
         header_layout.addWidget(header_title)
         
@@ -2031,7 +1896,6 @@ class CloudflareScanUI(QWidget):
         
         layout.addWidget(header_frame)
         
-        # 内容区域
         content_frame = QFrame()
         content_frame.setStyleSheet("QFrame { background: #F9FAFB; border: none; }")
         content_layout = QVBoxLayout(content_frame)
@@ -2039,14 +1903,13 @@ class CloudflareScanUI(QWidget):
         content_layout.setSpacing(16)
         
         msg_label = QLabel("确定要停止当前正在运行的任务吗？\n未完成的进度将会丢失。")
-        msg_label.setFont(QFont(SYSTEM_FONT.split(',')[0].strip(), 10))
+        msg_label.setFont(QFont(FONT_FAMILY, 10))  # 优化：提取字体计算
         msg_label.setStyleSheet("color: #374151; background: transparent; border: none;")
         msg_label.setAlignment(Qt.AlignCenter)
         content_layout.addWidget(msg_label)
         
         layout.addWidget(content_frame)
         
-        # 按钮区域
         btn_frame = QFrame()
         btn_frame.setStyleSheet("QFrame { background: #F9FAFB; border: none; }")
         btn_layout = QHBoxLayout(btn_frame)
@@ -2054,7 +1917,6 @@ class CloudflareScanUI(QWidget):
         btn_layout.setSpacing(12)
         btn_layout.addStretch()
         
-        # 取消按钮
         cancel_btn = QPushButton("取消")
         cancel_btn.setFixedSize(100, 36)
         cancel_btn.setFont(FONT_BTN)
@@ -2064,7 +1926,7 @@ class CloudflareScanUI(QWidget):
                 background: #E5E7EB;
                 color: #374151;
                 border-radius: 8px;
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
                 border: none;
                 font-weight: bold;
             }}
@@ -2077,7 +1939,6 @@ class CloudflareScanUI(QWidget):
         """)
         cancel_btn.clicked.connect(dialog.reject)
         
-        # 确认按钮（红色）
         confirm_btn = QPushButton("停止任务")
         confirm_btn.setFixedSize(100, 36)
         confirm_btn.setFont(FONT_BTN)
@@ -2087,7 +1948,7 @@ class CloudflareScanUI(QWidget):
                 background: #EF4444;
                 color: white;
                 border-radius: 8px;
-                font-family: "{SYSTEM_FONT}";
+                font-family: "{FONT_FAMILY}";
                 border: none;
                 font-weight: bold;
             }}
@@ -2104,7 +1965,6 @@ class CloudflareScanUI(QWidget):
         btn_layout.addWidget(confirm_btn)
         layout.addWidget(btn_frame)
         
-        # 显示对话框
         result = dialog.exec()
         
         if result == QDialog.Accepted:
@@ -2144,7 +2004,7 @@ class CloudflareScanUI(QWidget):
                 scan_path, _ = QFileDialog.getSaveFileName(
                     self, "保存扫描结果",
                     f"cf_scan_{timestamp_str}.csv",
-                    "CSV文件 (*.csv);;JSON文件 (*.json);;所有文件 (*)"
+                    "CSV文件 (*.csv);;JSON文件;;所有文件 (*)"
                 )
                 if scan_path:
                     self._write_export_file(scan_path, "scan", self.scan_results)
@@ -2153,7 +2013,7 @@ class CloudflareScanUI(QWidget):
                 speed_path, _ = QFileDialog.getSaveFileName(
                     self, "保存测速结果",
                     f"cf_speed_{timestamp_str}.csv",
-                    "CSV文件 (*.csv);;JSON文件 (*.json);;所有文件 (*)"
+                    "CSV文件;;JSON文件;;所有文件 (*)"
                 )
                 if speed_path:
                     self._write_export_file(speed_path, "speed", self.speed_results)
@@ -2179,7 +2039,7 @@ class CloudflareScanUI(QWidget):
             with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 if result_type == "speed":
-                    writer.writerow(["排名", "IP地址", "地区码", "地区", "延迟(ms)", "下载速度(MB/s)", "端口", "测速类型"])
+                    writer.writerow(["排名", "IP地址", "地区码", "地区", "延迟", "下载速度", "端口", "测速类型"])
                     for i, r in enumerate(results):
                         writer.writerow([
                             i + 1, r.get('ip', ''), r.get('iata_code', ''),
@@ -2188,7 +2048,7 @@ class CloudflareScanUI(QWidget):
                             r.get('test_type', '')
                         ])
                 else:
-                    writer.writerow(["IP地址", "地区码", "地区", "延迟(ms)", "IP版本", "端口", "扫描时间"])
+                    writer.writerow(["IP地址", "地区码", "地区", "延迟", "IP版本", "端口", "扫描时间"])
                     for r in results:
                         writer.writerow([
                             r.get('ip', ''), r.get('iata_code', ''),
