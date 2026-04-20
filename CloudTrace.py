@@ -72,8 +72,27 @@ BTN_W = 120
 BTN_H = 32
 SPACING = 8
 
-# 保存路径
-SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CloudTrace_history")
+
+# 保存路径 (兼容 PyInstaller 打包)
+if getattr(sys, 'frozen', False):
+    # 如果是打包后的 exe 环境，获取 exe 所在的目录
+    APP_DIR = os.path.dirname(sys.executable)
+	# PyInstaller 解压临时目录，用于寻找打包进来的资源文件
+    _MEIPASS = sys._MEIPASS
+else:
+    # 如果是普通 Python 脚本环境，获取脚本所在的目录
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    _MEIPASS = APP_DIR
+def resource_path(relative_path):
+    """获取资源的绝对路径 (兼容开发环境与 PyInstaller 打包环境)"""
+    try:
+        # PyInstaller 创建临时文件夹，将路径存入 sys._MEIPASS
+        return os.path.join(_MEIPASS, relative_path)
+    except Exception:
+        return os.path.join(APP_DIR, relative_path)
+
+SAVE_DIR = os.path.join(APP_DIR, "CloudTrace_history")
+
 IPV4_SCAN_FILE = os.path.join(SAVE_DIR, "ipv4_scan_latest.json")
 IPV6_SCAN_FILE = os.path.join(SAVE_DIR, "ipv6_scan_latest.json")
 IPV4_SPEED_FILE = os.path.join(SAVE_DIR, "ipv4_speed_latest.json")
@@ -1242,6 +1261,11 @@ class CloudflareScanUI(QWidget):
         self.setWindowTitle("CloudTrace 云迹 V1.0")
         self.resize(480, 850)
         self.setMinimumSize(460, 650)
+		
+		# ★ 设置窗口图标
+        icon_path = resource_path("favicon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.setStyleSheet(f"""
         QWidget {{ font-family: "{FONT_FAMILY}", sans-serif; background: #F9FAFB; }}

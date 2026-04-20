@@ -8,6 +8,8 @@
 **CloudTrace 云迹** 是一款带有现代化图形界面的 Cloudflare IP 扫描与测速工具。  
 融合了 [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) 的高效测速逻辑与 [xiaolin-007/CloudFlareScan](https://github.com/xiaolin-007/CloudFlareScan) 的美观 UI 设计理念。
 
+[👉 点此前往下载页面](https://github.com/zrf-code/CloudTrace/releases/latest)
+
 </div>
 
 ---
@@ -26,7 +28,7 @@
 
 ### 🎯 精准节点识别
 - **双栈全面覆盖**：全面支持 Cloudflare 官方 IPv4 与 IPv6 地址段扫描。
-- **IATA 深度解析**：自动获取节点的 IATA 机场代码，并内置 80+ Cloudflare常见代码的中文汉化映射（如 NRT->东京, HKG->香港）。
+- **IATA 深度解析**：自动获取节点的 IATA 机场代码，并内置 80+ Cloudflare 常见代码的中文汉化映射（如 NRT->东京, HKG->香港）。
 - **双重识别机制**：优先解析 `/cdn-cgi/trace`，若失败自动回退解析 HTTP 响应头中的 `CF-RAY` 字段，确保识别成功率。
 
 ### 🎨 现代化交互体验
@@ -39,18 +41,16 @@
 - **智能空间清理**：自动清理旧版命名格式文件，自动保留最新 5 份历史记录，避免磁盘空间无序浪费。
 - **多格式导出**：支持将结果一键导出为 CSV 或 JSON 格式，方便二次处理。
 
-### ⚒️️ 极致系统兼容
+### ⚒️ 极致系统兼容
 - **Win7 深度适配**：底层强制使用 TLS 1.2 协议并切换事件循环策略，完美解决 Windows 7 下 PySide6 崩溃与 SSL 握手失败问题。
-
 
 ---
 
 ## 📺 界面预览
 
-| 主界面 | 测速 |
-|------------------|------------------|
-| ![亮色主题截图](/Screenshots/1.png) | ![暗黑主题截图](/Screenshots/2.png) |
-
+| 主界面 | 测速结果 |
+|:------------------:|:------------------:|
+| ![主界面截图](/Screenshots/1.png) | ![测速结果截图](/Screenshots/2.png) |
 
 ---
 
@@ -61,6 +61,12 @@
 - Windows 7 / 10 / 11 或其他主流操作系统
 
 ### 安装步骤
+
+## 使用预编译版本
+
+从 [Releases](https://github.com/zrf-code/CloudTrace/releases/latest) 页面下载可执行文件：
+
+## 从源码运行
 
 1. 克隆本项目：
    ```bash
@@ -124,8 +130,13 @@
 
 ---
 
-## ⚙️ Win7 兼容说明
+## ⚠️ 常见问题
 
+### 1. 杀毒软件报毒怎么办？
+本程序使用 PyInstaller 打包。由于 PyInstaller 的工作原理（将 Python 解释器和脚本打包成单个可执行文件并自解压运行），极易被 Windows Defender 等杀毒软件误报为木马（如 `Trojan.Win32`）。
+**这是开源打包软件的通病，程序绝对安全！** 如遇报错，请添加信任或暂时关闭杀毒软件后运行。如果你不放心，完全可以下载源码自行审查并打包。
+
+### 2. Windows 7 兼容说明
 在 Windows 7 环境下运行 PySide6 与异步网络程序通常会遇到 SSL 握手失败或事件循环崩溃的问题。本项目已在底层进行了适配：
 - 强制使用 `WindowsSelectorEventLoopPolicy` 替代默认的 Proactor 策略。
 - 针对 Win7 的 SSL 上下文进行了修补，强制使用 TLS 1.2 协议。
@@ -138,11 +149,14 @@
 ```text
 CloudTrace/
 ├── CloudTrace.py             # 主程序代码
+├── build.py                  # 自动打包构建脚本
+├── favicon.ico               # 程序图标
 ├── requirements.txt          # 依赖列表
 ├── README.md                 # 说明文档
+├── Screenshots/              # 界面截图目录
 └── CloudTrace_history/       # 结果自动保存目录（运行后自动生成）
     ├── ipv4_scan_latest.json # 最新的 IPv4 扫描结果
-	├── ipv6_scan_latest.json # 最新的 IPv6 扫描结果
+    ├── ipv6_scan_latest.json # 最新的 IPv6 扫描结果
     └── ...                   # 带时间戳的历史备份文件
 ```
 
