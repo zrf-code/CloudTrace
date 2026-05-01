@@ -1121,17 +1121,27 @@ class IPv6Scanner(BaseScanner):
             try:
                 network = ipaddress.ip_network(cidr, strict=False)
                 if network.num_addresses > 2:
-                    sample_size = min(200, network.num_addresses - 2)
-                    for _ in range(sample_size):
+                    # 根据前缀长度动态决定采样数
+                    prefixlen = network.prefixlen
+                    if prefixlen <= 32:
+                        sample_size = 2800   # 大段多抽
+                    elif prefixlen <= 40:
+                        sample_size = 500
+                    else:
+                        sample_size = 200   # /48 等小段保持原样
+
+                    max_hosts = min(sample_size, network.num_addresses - 2)
+                    for _ in range(max_hosts):
                         random_ip_int = random.randint(
                             int(network.network_address) + 1,
                             int(network.broadcast_address) - 1
-                        )
+                            )
                         ip_list.append(str(ipaddress.IPv6Address(random_ip_int)))
             except ValueError as e:
                 if self.log_callback:
                     self.log_callback(f"处理CIDR {cidr} 时出错: {e}")
         return ip_list
+                    
 
 
 # ===================== 工作线程 =====================
