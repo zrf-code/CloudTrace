@@ -19,6 +19,10 @@ import os
 import platform
 import json
 import shutil
+import requests
+
+
+
 
 # ============ Windows 7 兼容性配置 ============
 IS_WIN7 = (platform.system() == "Windows" and platform.release() == "7")
@@ -90,6 +94,74 @@ def resource_path(relative_path):
         return os.path.join(_MEIPASS, relative_path)
     except Exception:
         return os.path.join(APP_DIR, relative_path)
+
+
+# ============ 新增：动态 IP 列表支持 ============
+
+
+# Cloudflare 官方 IP 列表地址
+CF_OFFICIAL_IPV4_URL = "https://www.cloudflare.com/ips-v4/"
+CF_OFFICIAL_IPV6_URL = "https://www.cloudflare.com/ips-v6/"
+
+# 缓存文件与更新间隔（30 天）
+IP_CACHE_FILE = os.path.join(APP_DIR, "ip_cache.json")
+IP_CACHE_UPDATE_INTERVAL = 30 * 24 * 3600
+
+def fetch_official_cidrs(url: str):
+    """从官方 URL 获取 CIDR 列表，失败返回 None"""
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        lines = resp.text.splitlines()
+        return [line.strip() for line in lines if line.strip() and not line.startswith('#')]
+    except Exception as e:
+        print(f"[IP列表] 获取官方列表失败 ({url}): {e}")
+        return None
+
+def load_or_update_ip_cache(ip_version: int):
+    """
+    返回对应版本的 CIDR 列表（IPv4: 4, IPv6: 6）。
+    优先使用本地缓存，过期则尝试从官方更新；失败时回退内置列表。
+    """
+    builtin = CF_IPV4_CIDRS if ip_version == 4 else CF_IPV6_CIDRS
+    key = "ipv4" if ip_version == 4 else "ipv6"
+    url = CF_OFFICIAL_IPV4_URL if ip_version == 4 else CF_OFFICIAL_IPV6_URL
+
+    cache = {}
+    # 读取本地缓存
+    try:
+        if os.path.exists(IP_CACHE_FILE):
+            with open(IP_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+    except Exception:
+        pass
+
+    current_time = time.time()
+    # 如果缓存有效且未过期，直接返回
+    if cache.get(key) and (current_time - cache.get('update_time', 0) < IP_CACHE_UPDATE_INTERVAL):
+        return cache[key]
+
+    # 尝试从官方更新
+    official_list = fetch_official_cidrs(url)
+    if official_list:
+        cache[key] = official_list
+        cache['update_time'] = current_time
+        try:
+            with open(IP_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(cache, f, ensure_ascii=False, indent=2)
+            print(f"[IP列表] 已更新 {key} 列表（{len(official_list)} 个 CIDR）")
+        except Exception:
+            pass
+        return official_list
+
+    # 下载失败，使用缓存中已有的列表（即使过期）
+    if cache.get(key):
+        print(f"[IP列表] 无法更新，使用过期缓存（{len(cache[key])} 个 CIDR）")
+        return cache[key]
+
+    # 没有任何可用缓存，回退内置列表
+    print(f"[IP列表] 无缓存，使用内置 {key} 列表")
+    return builtin
 
 SAVE_DIR = os.path.join(APP_DIR, "CloudTrace_history")
 
@@ -1009,7 +1081,9 @@ class IPv4Scanner(BaseScanner):
 
     def generate_ips_from_cidrs(self) -> List[str]:
         ip_list = []
-        for cidr in CF_IPV4_CIDRS:
+        # 改为从动态列表获取 CIDR
+        cidrs = load_or_update_ip_cache(4)  # 4 代表 IPv4
+        for cidr in cidrs:
             try:
                 network = ipaddress.ip_network(cidr, strict=False)
                 for subnet in network.subnets(new_prefix=24):
@@ -1034,7 +1108,9 @@ class IPv6Scanner(BaseScanner):
 
     def generate_ips_from_cidrs(self) -> List[str]:
         ip_list = []
-        for cidr in CF_IPV6_CIDRS:
+        # 改为从动态列表获取 CIDR
+        cidrs = load_or_update_ip_cache(6)  # 6 代表 IPv6
+        for cidr in cidrs:
             try:
                 network = ipaddress.ip_network(cidr, strict=False)
                 if network.num_addresses > 2:
