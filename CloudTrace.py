@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-CloudTrace 云迹 V1.0 (Win7兼容版)
-"""
+
 
 import sys
 import random
@@ -94,6 +92,14 @@ def resource_path(relative_path):
         return os.path.join(_MEIPASS, relative_path)
     except Exception:
         return os.path.join(APP_DIR, relative_path)
+def get_version():
+    """从 version.txt 读取版本号，若文件不存在则返回开发版标识"""
+    version_file = os.path.join(APP_DIR, "version.txt")
+    try:
+        with open(version_file, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "DEV"   # 直接运行源码时显示的版本
 
 
 # ============ 新增：动态 IP 列表支持 ============
@@ -1360,7 +1366,7 @@ QTextEdit {{
 class CloudflareScanUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("CloudTrace 云迹 V1.0")
+        self.setWindowTitle(f"CloudTrace 云迹 V{get_version()}")
         self.resize(480, 850)
         self.setMinimumSize(460, 650)
 		
@@ -1448,7 +1454,7 @@ class CloudflareScanUI(QWidget):
         title.setStyleSheet("color: white; background: transparent; border: none;")
         title_layout.addWidget(title)
         
-        subtitle = QLabel('V1.0  ·  Cloudflare IP 优选扫描工具')
+        subtitle = QLabel(f'V{get_version()}  ·  Cloudflare IP 优选扫描工具')
         subtitle.setFont(QFont(FONT_FAMILY, 10))  # 优化：提取字体计算
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("color: rgba(255,255,255,180); background: transparent; border: none;")
