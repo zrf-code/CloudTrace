@@ -1018,19 +1018,26 @@ class BaseScanner:
             total = len(tasks)
             last_update_time = time.time()
 
-            for future in asyncio.as_completed(tasks):
+            pending = set(tasks)
+            while pending:
                 if not self.running:
-                    for task in tasks:
-                        if not task.done():
-                            task.cancel()
-                    break
-                try:
-                    result = await future
+                    # 取消所有未完成任务
+                    for task in pending:
+                        task.cancel()
+                        await asyncio.gather(*pending, return_exceptions=True)
+                        break
+                done, pending = await asyncio.wait(pending, timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+
+                for future in done:
                     completed += 1
-                    if result:
-                        successful_results.append(result)
-                except Exception:
-                    completed += 1
+                    try:
+                        result = future.result()
+                        if result:
+                            successful_results.append(result)
+                    except Exception:
+                        pass
+            
+
 
                 current_time = time.time()
                 if current_time - last_update_time >= 0.5 or completed == total:
