@@ -94,7 +94,7 @@ def resource_path(relative_path):
         return os.path.join(APP_DIR, relative_path)
 def get_version():
     """从 version.txt 读取版本号，若文件不存在则返回开发版标识"""
-    version_file = os.path.join(APP_DIR, "version.txt")
+    version_file = resource_path("version.txt") 
     try:
         with open(version_file, "r", encoding="utf-8") as f:
             return f.read().strip()

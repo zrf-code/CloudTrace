@@ -108,7 +108,7 @@ def build():
         print(f"[✓] 已设置程序图标并打包资源: {ICON_FILE}")
 
     # 将版本号文件也打包进去
-    cmd.extend(["--add-data", f"version.txt{os.pathsep}."])
+    cmd.extend(["--add-data", "version.txt;."])
     print("[✓] 已将 version.txt 加入打包资源")
 
     # UPX 压缩配置
