@@ -1177,6 +1177,9 @@ class ScanWorker(QThread):
             results = loop.run_until_complete(self.scanner.run_scan_async())
             if results is not None:
                 self.scan_completed.emit(results)
+        except asyncio.CancelledError:
+            # 用户主动停止时，忽略这个异常
+            pass
         finally:
             loop.close()
 
@@ -1220,6 +1223,7 @@ class SpeedTestWorker(QThread):
             else:
                 sock = socket.create_connection((ip, port), timeout=3)
             ss = ctx.wrap_socket(sock, server_hostname=self.test_host)
+            ss.settimeout(1.0)   # ★ 设置 socket 读取超时为1秒，避免长时间卡死
             ss.sendall(req)
             start = time.time()
             
@@ -1228,7 +1232,12 @@ class SpeedTestWorker(QThread):
             header_done = False
             
             while time.time() - start < self.download_time_limit:
-                buf = ss.recv(8192)
+                if not self.running:          # 检查停止标志
+                    break
+                try:
+                    buf = ss.recv(8192)
+                except socket.timeout:
+                    continue                  # 超时后再次检查 running 标志
                 if not buf:
                     break
                 if not header_done:
